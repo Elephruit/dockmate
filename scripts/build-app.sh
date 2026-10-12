@@ -5,8 +5,10 @@ swift build -c release
 bin_dir="$(swift build -c release --show-bin-path)"
 app_path="$PWD/build/DockMate.app"
 mkdir -p "$app_path/Contents/MacOS"
+mkdir -p "$app_path/Contents/Resources"
 cp "$bin_dir/DockMate" "$app_path/Contents/MacOS/DockMate"
 cp Resources/Info.plist "$app_path/Contents/Info.plist"
+cp Resources/AppIcon.icns Resources/MenuBarIcon.png Resources/MenuBarIcon@2x.png "$app_path/Contents/Resources/"
 plutil -lint "$app_path/Contents/Info.plist"
 # Ad-hoc signing is sufficient for this local personal build. For distribution,
 # use a Developer ID identity and notarize the resulting bundle.

@@ -10,8 +10,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
-        let image = NSImage(systemSymbolName: "laptopcomputer.and.arrow.down", accessibilityDescription: "DockMate")
+        let image = Bundle.main.url(forResource: "MenuBarIcon", withExtension: "png")
+            .flatMap { NSImage(contentsOf: $0) }
             ?? NSImage(systemSymbolName: "display", accessibilityDescription: "DockMate")
+        image?.size = NSSize(width: 20, height: 20)
         image?.isTemplate = true
         statusItem.button?.image = image
         statusItem.button?.toolTip = "DockMate — mouse & monitors"
