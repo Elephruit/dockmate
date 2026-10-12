@@ -1,8 +1,21 @@
 # DockMate
 
+<img src="Resources/AppIcon.png" alt="DockMate monitor icon" width="96">
+
 A native macOS menu bar utility for using a MacBook with external monitors.
 Swift + AppKit, no third-party dependencies, no Dock icon, no network requests.
 Requires macOS 13 or later and Xcode Command Line Tools to build.
+
+## Why I built it
+
+When I dock my MacBook, I like to keep the lid open so I can still use the Touch ID
+fingerprint scanner. But I don't want the built-in screen on when I'm using external
+monitors. I also prefer my mouse wheel to scroll in the opposite direction from
+my trackpad.
+
+DockMate solves both inconveniences with two simple menu bar controls: turn off
+the built-in display with the lid open, and reverse mouse wheel scrolling without
+changing the trackpad. It makes docking my laptop a little easier.
 
 ## Build and open
 
@@ -66,6 +79,12 @@ This is a personal utility, not a Mac App Store build.
 Implementation references:
 [Apple Quartz Event Services](https://developer.apple.com/documentation/coregraphics/cgevent)
 and [displaytoggle's SkyLight declarations](https://github.com/calvincchan/displaytoggle/blob/main/Sources/displaytoggle/SkyLightBridge.h).
+
+## Icon artwork
+
+The app includes a simple monitor icon and a matching monochrome
+menu bar icon. Regenerate the committed assets on macOS with
+`swift scripts/render-icons.swift`, then rebuild the app.
 
 ## Verification
 
