@@ -30,19 +30,23 @@ Launch at Login. Local builds are ad-hoc signed; replacing the binary may requir
 removing and re-adding it under Accessibility. Developer ID signing is supported
 by setting `DOCKMATE_SIGN_IDENTITY` when running the build script.
 
-Click the laptop icon in the menu bar:
+Click the monitor icon in the menu bar to open the compact control panel:
 
 - **Reverse Mouse Scrolling** reverses wheel mouse scrolling relative to your
   macOS setting, including horizontal scrolling. Enable DockMate in System
   Settings → Privacy & Security → Accessibility when prompted. Reopen the menu
   after granting permission; restart the app if macOS requests it. The preference
   is remembered between launches.
-- **Turn Built-in Display Off…** disables the laptop panel while the lid stays
-  open. Requires an active external monitor. On your external screen, reopen
-  the menu and choose **Keep Built-in Display Off** within 15 seconds; otherwise
-  the panel restores automatically. **Turn Built-in Display On** restores it.
+- Switch **Built-in display** off to disable the laptop screen while the lid stays
+  open. Requires an active external monitor. On your external screen, open
+  DockMate and choose **Keep display off** within 15 seconds; otherwise the screen
+  restores automatically. Switch **Built-in display** on to restore it.
 - **Launch at Login** registers the app with macOS. Approve it in Login Items if
   macOS asks. This works from an app bundle, not `swift run`.
+
+The panel follows your macOS light or dark appearance. Permission and recovery
+messages appear only when needed. The footer's info button opens About; the power
+button quits DockMate.
 
 The panel is restored when the last active external monitor disconnects, before
 sleep, after wake, and before normal quit. Recovery is retried if a restore fails;
@@ -97,6 +101,13 @@ swift test
 Tests exercise wheel delta reversal, trackpad/momentum/synthetic exclusions,
 and the rules preventing the only screen from being disabled. `--diagnose` only
 reads display state; it does not change hardware or request permissions.
+
+To render the actual AppKit panel in six representative states in both light and
+dark appearances without changing settings or display hardware:
+
+```sh
+./build/DockMate.app/Contents/MacOS/DockMate --preview-panel build/PanelPreviews
+```
 
 Hardware acceptance checks (with an external display attached):
 

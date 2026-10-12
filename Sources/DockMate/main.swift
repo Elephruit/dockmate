@@ -1,11 +1,13 @@
 import AppKit
 import ServiceManagement
 
-final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem!
     private let scroll = ScrollController()
     private let displays = DisplayController()
     private let defaults = UserDefaults.standard
+    private let panel = DockPanel()
+    private let popover = NSPopover()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
@@ -17,89 +19,67 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         image?.isTemplate = true
         statusItem.button?.image = image
         statusItem.button?.toolTip = "DockMate — mouse & monitors"
-        let menu = NSMenu()
-        menu.delegate = self
-        statusItem.menu = menu
-        displays.onChange = { [weak self] in self?.refreshMenu() }
-        scroll.onChange = { [weak self] in self?.refreshMenu() }
+        statusItem.button?.target = self
+        statusItem.button?.action = #selector(togglePanel)
+        popover.behavior = .transient
+        popover.contentViewController = panel
+        panel.onScroll = { [weak self] in self?.toggleScroll() }
+        panel.onDisplay = { [weak self] in self?.toggleDisplay() }
+        panel.onKeepOff = { [weak self] in self?.keepDisplayOff() }
+        panel.onAccessibility = { [weak self] in self?.accessibility() }
+        panel.onRecovery = { [weak self] in self?.recoveryError() }
+        panel.onLogin = { [weak self] in self?.toggleLogin() }
+        panel.onLoginSettings = { [weak self] in self?.loginSettings() }
+        panel.onAbout = { [weak self] in self?.about() }
+        panel.onQuit = { [weak self] in self?.quit() }
+        displays.onChange = { [weak self] in self?.refreshPanel() }
+        scroll.onChange = { [weak self] in self?.refreshPanel() }
         displays.start()
         if defaults.bool(forKey: "reverseMouse") { scroll.start(prompt: false) }
-        refreshMenu()
+        refreshPanel()
     }
 
-    func menuWillOpen(_ menu: NSMenu) {
+    @objc private func togglePanel() {
+        if popover.isShown {
+            popover.performClose(nil)
+            return
+        }
         if defaults.bool(forKey: "reverseMouse") && !scroll.isRunning { scroll.start(prompt: false) }
-        refreshMenu()
+        refreshPanel()
+        guard let button = statusItem.button else { return }
+        popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+        popover.contentViewController?.view.window?.makeKey()
     }
 
-    private func item(_ title: String, action: Selector? = nil, enabled: Bool = true) -> NSMenuItem {
-        let item = NSMenuItem(title: title, action: action, keyEquivalent: "")
-        item.target = self
-        item.isEnabled = enabled
-        return item
-    }
-
-    private func refreshMenu() {
-        guard let menu = statusItem?.menu else { return }
-        menu.autoenablesItems = false
-        menu.removeAllItems()
-        menu.addItem(item("DockMate", enabled: false))
-        menu.addItem(item("\(displays.externalCount) external monitor\(displays.externalCount == 1 ? "" : "s") connected", enabled: false))
-        menu.addItem(.separator())
-        let reverse = item("Reverse Mouse Scrolling", action: #selector(toggleScroll))
-        reverse.state = scroll.isRunning ? .on : .off
-        menu.addItem(reverse)
-        menu.addItem(item("Wheel mice only · trackpad unchanged", enabled: false))
-        if defaults.bool(forKey: "reverseMouse") && !scroll.isRunning {
-            menu.addItem(item("Allow Accessibility to enable scrolling…", action: #selector(accessibility)))
-        }
-        menu.addItem(.separator())
+    private func refreshPanel() {
         let canRestore = displays.disabledByApp || (!displays.builtInActive && displays.builtInID != nil)
-        menu.addItem(item(canRestore ? "Turn Built-in Display On" : "Turn Built-in Display Off…",
-                          action: #selector(toggleDisplay),
-                          enabled: canRestore || (displays.isSupported && displays.builtInActive && displays.externalCount > 0)))
-        if displays.awaitingConfirmation {
-            menu.addItem(item("Keep Built-in Display Off", action: #selector(keepDisplayOff)))
-            menu.addItem(item("Restores after 15 seconds unless kept", enabled: false))
-        } else if displays.disabledByApp {
-            menu.addItem(item("Restores on unplug, sleep, or quit", enabled: false))
-        } else if !displays.isSupported {
-            menu.addItem(item("Display control unavailable on this macOS", enabled: false))
-        } else if displays.externalCount == 0 {
-            menu.addItem(item("Connect an external monitor first", enabled: false))
-        }
-        if let error = displays.lastError {
-            menu.addItem(item("Display recovery needs attention…", action: #selector(recoveryError)))
-            statusItem.button?.toolTip = error
-        } else {
-            statusItem.button?.toolTip = "DockMate — mouse & monitors"
-        }
-        menu.addItem(.separator())
-        let login = item("Launch at Login", action: #selector(toggleLogin))
-        login.state = SMAppService.mainApp.status == .enabled ? .on : .off
-        menu.addItem(login)
-        if SMAppService.mainApp.status == .requiresApproval {
-            menu.addItem(item("Approve in Login Items…", action: #selector(loginSettings)))
-        }
-        menu.addItem(item("About DockMate…", action: #selector(about)))
-        menu.addItem(item("Quit DockMate", action: #selector(quit)))
+        panel.update(PanelState(
+            externalCount: displays.externalCount,
+            reverseMouse: defaults.bool(forKey: "reverseMouse"),
+            scrollRunning: scroll.isRunning,
+            builtInOn: displays.builtInActive,
+            displayAvailable: displays.isSupported && displays.builtInID != nil,
+            canChangeDisplay: canRestore || (displays.isSupported && displays.builtInActive && displays.externalCount > 0),
+            confirmingDisplay: displays.awaitingConfirmation,
+            recoveryError: displays.lastError,
+            launchAtLogin: SMAppService.mainApp.status == .enabled,
+            loginNeedsApproval: SMAppService.mainApp.status == .requiresApproval
+        ))
+        popover.contentSize = panel.preferredContentSize
+        statusItem.button?.toolTip = displays.lastError ?? "DockMate — mouse & monitors"
     }
 
     @objc private func toggleScroll() {
-        if defaults.bool(forKey: "reverseMouse") && scroll.isRunning {
-            defaults.set(false, forKey: "reverseMouse")
-            scroll.stop()
-        } else if defaults.bool(forKey: "reverseMouse") {
-            // An enabled preference with missing permission can still be switched off.
+        if defaults.bool(forKey: "reverseMouse") {
             defaults.set(false, forKey: "reverseMouse")
             scroll.stop()
         } else {
             defaults.set(true, forKey: "reverseMouse")
             if !scroll.start(prompt: true) {
-                alert("Allow mouse scroll control", "Enable DockMate in System Settings → Privacy & Security → Accessibility. Then reopen this menu. If macOS requests it, quit and reopen DockMate.")
+                alert("Allow mouse scroll control", "Enable DockMate in System Settings → Privacy & Security → Accessibility. Then reopen DockMate. If macOS requests it, quit and reopen DockMate.")
             }
         }
-        refreshMenu()
+        refreshPanel()
     }
 
     @objc private func accessibility() {
@@ -112,7 +92,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             if displays.disabledByApp || !displays.builtInActive { try displays.restore() }
             else { try displays.turnOff() }
         } catch { alert("Display change failed", error.localizedDescription) }
-        refreshMenu()
+        refreshPanel()
     }
 
     @objc private func keepDisplayOff() { displays.keepOff() }
@@ -124,7 +104,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             if SMAppService.mainApp.status == .enabled { try SMAppService.mainApp.unregister() }
             else { try SMAppService.mainApp.register() }
         } catch { alert("Could not update Launch at Login", error.localizedDescription) }
-        refreshMenu()
+        refreshPanel()
     }
     @objc private func loginSettings() { SMAppService.openSystemSettingsLoginItems() }
     @objc private func about() {
@@ -140,6 +120,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         return .terminateNow
     }
     private func alert(_ title: String, _ message: String) {
+        popover.performClose(nil)
         NSApp.activate(ignoringOtherApps: true)
         let alert = NSAlert()
         alert.messageText = title
@@ -149,7 +130,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 }
 
-if CommandLine.arguments.contains("--restore-display") {
+if let index = CommandLine.arguments.firstIndex(of: "--preview-panel") {
+    guard CommandLine.arguments.count > index + 1 else {
+        fputs("Usage: DockMate --preview-panel <output-directory>\n", stderr)
+        exit(1)
+    }
+    do { try renderPanelPreviews(to: URL(fileURLWithPath: CommandLine.arguments[index + 1])) }
+    catch { fputs("\(error.localizedDescription)\n", stderr); exit(1) }
+} else if CommandLine.arguments.contains("--restore-display") {
     do {
         try DisplayController().restore()
         print("Built-in display enabled.")
